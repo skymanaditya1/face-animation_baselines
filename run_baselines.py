@@ -1,4 +1,4 @@
-# This is the code for preprocessing the data and running the different baselines 
+# Script for running different face swapping and reenactment baselines 
 import os
 import os.path as osp
 import random
@@ -10,13 +10,16 @@ import cv2
 
 fomm_working_dir = '/ssd_scratch/cvit/aditya1/baselines/fomm/'
 cosegmentation_working_dir = '/ssd_scratch/cvit/aditya1/baselines/motion-cosegmentation/'
+fsgan_working_dir = '/ssd_scratch/cvit/aditya1/baselines/data/dev/projects/fsgan/inference/'
 
 baseline_results_dir = '/ssd_scratch/cvit/aditya1/baselines/results'
 temp_dir = '/ssd_scratch/cvit/aditya1/baselines/temp'
 
-base_dir = '/ssd_scratch/cvit/aditya1/baselines/custom_data'
-good_video_files = osp.join(base_dir, 'good_files')
-bad_video_files = osp.join(base_dir, 'bad_files')
+# base_dir = '/ssd_scratch/cvit/aditya1/baselines/custom_data'
+# good_video_files = osp.join(base_dir, 'good_files')
+# bad_video_files = osp.join(base_dir, 'bad_files')
+
+good_video_files = '/ssd_scratch/cvit/aditya1/metrics_baseline'
 
 def read_frames(video_path):
 	video_stream = cv2.VideoCapture(video_path)
@@ -210,61 +213,64 @@ def run_pcavs():
 # runs motion cosegmentation swap using only a single frame from the input
 # -- flaw - loss in identity information 
 def run_cosegmentation_swap_frame():
-	good_videos = glob(good_video_files + '/*_source.mp4')
-	random_idx = random.randint(0, len(good_videos)-1)
-	random_source_video = good_videos[random_idx]
+	good_videos = glob(good_video_files + '/*_target.mp4')
+	# random_idx = random.randint(0, len(good_videos)-1)
+	# random_source_video = good_videos[random_idx]
 
-	print(f'source video : {random_source_video}')
+	for random_source_video in good_videos:
+		print(f'source video : {random_source_video}')
 
-	target_video = random_source_video.replace('source', 'target')
+		target_video = random_source_video.replace('target', 'source')
 
-	# sample a random frame from the target video 
-	target_frames = read_frames(target_video)
-	target_idx = random.randint(0, len(target_frames)-1)
-	random_target_frame = target_frames[target_idx]
+		# sample a random frame from the target video 
+		target_frames = read_frames(target_video)
+		target_idx = random.randint(0, len(target_frames)-1)
+		random_target_frame = target_frames[target_idx]
 
-	fomm_temp_dir = osp.join(temp_dir, 'cosegmentation_frame_temp')
-	os.makedirs(fomm_temp_dir, exist_ok=True)
+		current_temp_dir = 'metrics_cosegmentation_baseline_frames'
 
-	target_frame_path = osp.join(fomm_temp_dir, osp.basename(random_source_video).split('.')[0] + '_' + str(target_idx)) + '.png'
-	print(f'target frame path : {target_frame_path}')
+		fomm_temp_dir = osp.join(temp_dir, current_temp_dir)
+		os.makedirs(fomm_temp_dir, exist_ok=True)
 
-	save_image_frame(random_target_frame, target_frame_path)
+		target_frame_path = osp.join(fomm_temp_dir, osp.basename(random_source_video).split('.')[0] + '_' + str(target_idx)) + '.png'
+		print(f'target frame path : {target_frame_path}')
 
-	cosegmentation_results_dir = osp.join(baseline_results_dir, 'cosegmentation_frame_results')
-	os.makedirs(cosegmentation_results_dir, exist_ok=True)
+		save_image_frame(random_target_frame, target_frame_path)
 
-	result_video = osp.join(cosegmentation_results_dir, osp.basename(random_source_video).split('.')[0] + '_target_frame_' + str(target_idx).zfill(3) + '.mp4')
-	print(f'result video : {result_video}')
+		cosegmentation_results_dir = osp.join(baseline_results_dir, current_temp_dir)
+		os.makedirs(cosegmentation_results_dir, exist_ok=True)
 
-	# run the fomm baseline using the pretrained model 
-	# random_source_video as the driving video and random_target_frame as the static image frame
+		result_video = osp.join(cosegmentation_results_dir, osp.basename(random_source_video).split('.')[0] + '_target_frame_' + str(target_idx).zfill(3) + '.mp4')
+		print(f'result video : {result_video}')
 
-	# there are three possible configurations - 5 segments and 10 segments
+		# run the fomm baseline using the pretrained model 
+		# random_source_video as the driving video and random_target_frame as the static image frame
 
-	# 10 segment code
-	dataset_name = 'config/vox-256-sem-10segments.yaml'
-	checkpoint = 'checkpoints/vox-10segments.pth.tar'
-	swap_indices = '2,5,7'
+		# there are three possible configurations - 5 segments and 10 segments
 
-	# # 5 segment code 
-	# dataset_name = 'config/vox-256-sem-5segments.yaml'
-	# checkpoint = 'checkpoints/vox-5segments.pth.tar'
-	# swap_indices = '2'
+		# 10 segment code
+		dataset_name = 'config/vox-256-sem-10segments.yaml'
+		checkpoint = 'checkpoints/vox-10segments.pth.tar'
+		swap_indices = '2,5,7'
 
-	template = 'python part_swap.py --config {} --target_video {} \
-							--source_image {} --checkpoint {} --swap_index {} \
-							--result_video {}'
+		# # 5 segment code 
+		# dataset_name = 'config/vox-256-sem-5segments.yaml'
+		# checkpoint = 'checkpoints/vox-5segments.pth.tar'
+		# swap_indices = '2'
+
+		template = 'python part_swap.py --config {} --target_video {} \
+								--source_image {} --checkpoint {} --swap_index {} \
+								--result_video {}'
 
 
-	command = template.format(dataset_name, random_source_video, 
-					target_frame_path, checkpoint, swap_indices, 
-					result_video)
+		command = template.format(dataset_name, random_source_video, 
+						target_frame_path, checkpoint, swap_indices, 
+						result_video)
 
-	print(f'cosegmentation frame command : {command}')
+		print(f'cosegmentation frame command : {command}')
 
-	os.chdir(cosegmentation_working_dir)
-	os.system(command)
+		os.chdir(cosegmentation_working_dir)
+		os.system(command)
 
 
 # runs motion cosegmentation swap using videos as both swap and animation
@@ -296,13 +302,15 @@ def run_cosegmentation_swap_video(src_file=None, dst_file=None):
 		chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
 		return ''.join([chars[random.randint(0, len(chars)-1)] for i in range(random_chars)])
 
-	target_frames_dir = osp.join(osp.join(temp_dir, 'cosegmentation_video_temp'), get_random())
+	current_temp_dir = 'metrics_cosegmentation_baseline'
+
+	target_frames_dir = osp.join(osp.join(temp_dir, current_temp_dir), get_random())
 	os.makedirs(target_frames_dir, exist_ok=True)
 
 	save_image_frames(target_frames, target_frames_dir)
 	print(f'target frame dir path : {target_frames_dir}')
 
-	temp_video_dir = osp.join(osp.join(temp_dir, 'cosegmentation_video_temp'), get_random())
+	temp_video_dir = osp.join(osp.join(temp_dir, current_temp_dir), get_random())
 	os.makedirs(temp_video_dir, exist_ok=True)
 
 	print(f'temp video dir (1s) duration videos : {temp_video_dir}')
@@ -313,7 +321,7 @@ def run_cosegmentation_swap_video(src_file=None, dst_file=None):
 		video_path = osp.join(temp_video_dir, str(index).zfill(3) + '.mp4')
 		save_frames_as_video([frame], video_path)
 
-	cosegmentation_temp_results_dir = osp.join(osp.join(temp_dir, 'cosegmentation_video_temp'), get_random())
+	cosegmentation_temp_results_dir = osp.join(osp.join(temp_dir, current_temp_dir), get_random())
 	os.makedirs(cosegmentation_temp_results_dir, exist_ok=True)
 
 	# there are three possible configurations - 5 segments and 10 segments
@@ -368,10 +376,34 @@ def run_cosegmentation_swap_video(src_file=None, dst_file=None):
 	save_frames_as_video(temp_result_frames, result_video)
 
 
-# run the deepfakes baseline 
+# code for running the fsgan pipeline 
+def run_fsgan_video_swap(src_file=None, dst_file=None):
+	# src_file is the source directory containing the videos 
+	# dst_file is the dst directory containing the destination videos
+	# dir_path = '/ssd_scratch/cvit/aditya1/baselines/data/dev/projects/fsgan/inference/validation_dataset'
+	dir_path = '/ssd_scratch/cvit/aditya1/metrics_baseline'
+	src_videos = sorted(glob(dir_path + '/*_source.mp4'))
+	dst_videos = sorted(glob(dir_path + '/*_target.mp4'))
+
+	template = 'python swap.py {} -t {} -o {} --seg_remove_mouth --encoder_codec mp4v -b 2 -pb 2 -lb 8 -fb 2 -sb 4 -db 4 --finetune'
+
+	output_dir = '/ssd_scratch/cvit/aditya1/baselines/data/dev/projects/fsgan/inference/validation_dataset/output'
+	os.makedirs(output_dir, exist_ok=True)
+
+	os.chdir(fsgan_working_dir)
+
+	for index, (src, dst) in tqdm(enumerate(zip(src_videos, dst_videos))):
+		print(f'Processing, src : {src}, dst : {dst}')
+		output_path = osp.join(output_dir, osp.basename(src).replace('source_original', 'result'))
+		command = template.format(src, dst, output_path)
+		os.system(command)
+
+		print(f'Generated result video : {output_path}')
 
 
-# run the deepfacelabs baseline 
+def run_fsgan_face_enactment(src_file=None, dst_file=None):
+	pass
+
 # command for running one shot neural view synthesis 
 '''python demo.py --config config/vox-256.yaml --checkpoint checkpoints/00000189-checkpoint.pth.tar --source_image /ssd_scratch/cvit/aditya1/baselines/custom_validation/fomm/example5_bigguy/dst.png --driving_video /ssd_scratch/cvit/aditya1/baselines/custom_validation/fomm/example5_bigguy/src.mp4 --relative --adapt_scale --result_video /home2/aditya1/cvit/content_sync/acm_results/custom_validation/fomm/example5_bigguy/fomm.mp4
 '''
@@ -381,26 +413,29 @@ if __name__ == '__main__':
 
 	baselines = ['fomm', 'pcavs', 'makeittalk', 
 				'cosegmentation_frame', 'cosegmentation_video', 
-				'fomm_video', 'deepfakes', 'deepfacelabs']
-	baseline = baselines[4]
+				'fomm_video', 'fsgan']
+	baseline = baselines[3]
                            
 	print(f'Running baseline {baseline}')
 
-	# if baseline == 'fomm':
-	# 	run_fomm()
-	# elif baseline == 'cosegmentation_frame':
-	# 	run_cosegmentation_swap_frame()
-	# elif baseline == 'cosegmentation_video':
-	# 	run_cosegmentation_swap_video()
-	# elif baseline == 'fomm_video':
-	# 	run_fomm_video()
+	if baseline == 'fomm':
+		run_fomm()
+	elif baseline == 'cosegmentation_frame':
+		run_cosegmentation_swap_frame()
+	elif baseline == 'cosegmentation_video':
+		run_cosegmentation_swap_video()
+	elif baseline == 'fomm_video':
+		run_fomm_video()
 
 	# src_video = '/ssd_scratch/cvit/aditya1/baselines/face-animation_baselines/custom_example/source_video.mp4'
 	# tgt_video = '/ssd_scratch/cvit/aditya1/baselines/face-animation_baselines/custom_example/target_video.mp4'
 
 	# test1/1_0_113, test2/1_0_18, test3/1_0_26, test4/1_0_5, test5/1_0_63
 
-	src_video = '/ssd_scratch/cvit/aditya1/baselines/custom_validation/cosegmentation/test5/1_0_63_dst.mp4'
-	tgt_video = '/ssd_scratch/cvit/aditya1/baselines/custom_validation/cosegmentation/test5/1_0_63_src.mp4'
+	# src_video = '/ssd_scratch/cvit/aditya1/baselines/custom_validation/cosegmentation/test5/1_0_63_dst.mp4'
+	# tgt_video = '/ssd_scratch/cvit/aditya1/baselines/custom_validation/cosegmentation/test5/1_0_63_src.mp4'
 
-	run_cosegmentation_swap_video(src_video, tgt_video)
+	# run_cosegmentation_swap_video(src_video, tgt_video)
+
+
+	# run_fsgan_video_swap()
